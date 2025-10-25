@@ -1,45 +1,54 @@
 import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import fs from "node:fs";
 import path from "path";
 import { defineConfig } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
-
 const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime()];
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins,
   resolve: {
     alias: {
-      "@": path.resolve(import.meta.dirname, "client", "src"),
-      "@shared": path.resolve(import.meta.dirname, "shared"),
-      "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      "@": path.resolve(__dirname, "client", "src"),
+      "@shared": path.resolve(__dirname, "shared"),
+      "@assets": path.resolve(__dirname, "attached_assets"),
     },
   },
-  envDir: path.resolve(import.meta.dirname),
-  root: path.resolve(import.meta.dirname, "client"),
-  publicDir: path.resolve(import.meta.dirname, "client", "public"),
+  envDir: path.resolve(__dirname),
+  root: path.resolve(__dirname, "client"),
+  publicDir: path.resolve(__dirname, "client", "public"),
+  base: mode === 'github-pages' ? '/uutki/' : '/',
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist/public"),
+    outDir: path.resolve(__dirname, "docs"),
     emptyOutDir: true,
-    // Optimize for faster loading
+    // Optimize for GitHub Pages
     minify: 'terser',
     terserOptions: {
       compress: {
         drop_console: true,
         drop_debugger: true,
+        pure_funcs: ['console.log', 'console.info', 'console.debug', 'console.warn'],
       },
     },
     rollupOptions: {
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-tabs'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-tabs', '@radix-ui/react-dropdown-menu'],
+          icons: ['lucide-react'],
+          utils: ['wouter', 'sonner'],
         },
+        // Размещаем CSS и JS файлы в корне папки сборки
+        chunkFileNames: '[name]-[hash].js',
+        entryFileNames: '[name]-[hash].js',
+        assetFileNames: '[name]-[hash].[ext]',
       },
     },
+    // Optimize bundle size
+    chunkSizeWarningLimit: 1000,
+    target: 'es2015',
   },
   server: {
     host: true,
@@ -66,4 +75,4 @@ export default defineConfig({
     include: ['react', 'react-dom', 'wouter'],
     exclude: ['@radix-ui/react-dialog', '@radix-ui/react-tabs'],
   },
-});
+}));
