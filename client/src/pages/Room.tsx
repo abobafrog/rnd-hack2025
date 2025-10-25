@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 // import { useAuth } from "@/_core/hooks/useAuth";
 import { io, Socket } from "socket.io-client";
-import { Mic, MicOff, Video, VideoOff, Phone, MessageCircle, Users, Settings, Copy, Share, AlertCircle, Home } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, Phone, MessageCircle, Users, Settings, Copy, Share, AlertCircle, Home, Shield, UserX, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Room() {
@@ -19,6 +19,7 @@ export default function Room() {
   const [userName, setUserName] = useState("");
   const [joined, setJoined] = useState(false);
   const [pendingUsers, setPendingUsers] = useState<Array<{ socketId: string, userName: string }>>([]); // Ожидающие подключения пользователи
+  const [userId, setUserId] = useState<number | null>(null); // ID текущего пользователя
   
   // Загружаем пользователя при монтировании компонента
   useEffect(() => {
@@ -31,8 +32,11 @@ export default function Room() {
         // Автоматически подставляем имя из профиля пользователя
         if (userData.isDemo) {
           setUserName("Гость");
+          setUserId(0); // Для демо-пользователей используем ID 0
         } else {
           setUserName(userData.name || "");
+          // Используем ID как есть (может быть строкой или числом)
+          setUserId(userData.id ? (typeof userData.id === 'string' ? parseInt(userData.id) : userData.id) : null);
         }
       }
     };
@@ -59,12 +63,13 @@ export default function Room() {
       clearInterval(interval);
     };
   }, []);
+
   const [message, setMessage] = useState("");
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
-  const [remotePeers, setRemotePeers] = useState<Map<string, { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean }>>(new Map());
-  const [localMessages, setLocalMessages] = useState<Array<{id: string, userName: string, message: string, timestamp: Date, isEdited?: boolean}>>([]);
+  const [remotePeers, setRemotePeers] = useState<Map<string, { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }>>(new Map());
+  const [localMessages, setLocalMessages] = useState<Array<{id: string, userName: string, message: string, timestamp: Date, isEdited?: boolean, isAdmin?: boolean}>>([]);
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -97,6 +102,36 @@ export default function Room() {
     ownerId: 1 
   } : roomQuery.data;
 
+  // Определяем, является ли текущий пользователь администратором (владельцем комнаты)
+  const isAdmin = useMemo(() => {
+    if (!demoRoom) return false;
+    
+    // Проверяем по ownerId из комнаты
+    if (userId && demoRoom.ownerId) {
+      return demoRoom.ownerId === userId;
+    }
+    
+    // В демо-режиме или если userId не определен, проверяем из localStorage
+    const roomOwners = JSON.parse(localStorage.getItem("room_owners") || "{}");
+    const savedOwnerId = roomOwners[roomCode];
+    
+    if (savedOwnerId) {
+      // Используем id или name пользователя для сравнения
+      const currentUserId = currentUser?.id || "";
+      const currentUserName = currentUser?.name || "";
+      
+      // Также проверяем числовое значение userId
+      const currentUserIdNum = userId || 0;
+      
+      return savedOwnerId === currentUserId || 
+             savedOwnerId === currentUserName || 
+             savedOwnerId === currentUserIdNum ||
+             savedOwnerId === String(currentUserIdNum);
+    }
+    
+    return false;
+  }, [demoRoom, userId, isDemoMode, roomCode, currentUser]);
+
   // Показываем toast уведомление если комната не найдена
   useEffect(() => {
     if (isRoomNotFound && roomCode) {
@@ -117,36 +152,42 @@ export default function Room() {
 
   // Все хуки должны быть перед условными возвратами
   useEffect(() => {
-    if (!joined) return;
+    if (!joined || !userName.trim()) return;
 
     const socket = io(window.location.origin);
     socketRef.current = socket;
 
     socket.on("connect", () => {
-      console.log("Connected to socket server");
-      socket.emit("join-room", roomCode, userName);
+      console.log("Socket connected, joining room:", roomCode);
+      
+      if (!userName.trim()) {
+        console.error("Cannot join room: userName is empty!");
+        return;
+      }
+      
+      socket.emit("join-room", roomCode, userName, isAdmin);
     });
 
     // Получаем список существующих участников при присоединении
-    socket.on("existing-users", async (users: Array<{ socketId: string, userName: string }>) => {
-      console.log("Received existing users:", users);
+    socket.on("existing-users", async (users: Array<{ socketId: string, userName: string, isAdmin?: boolean }>) => {
+      console.log("Existing users:", users.length);
       
-      if (localStream && users.length > 0) {
+      if (users.length > 0) {
         for (const user of users) {
           if (!peerConnectionsRef.current.has(user.socketId)) {
-            console.log(`Creating peer connection for existing user ${user.userName} (${user.socketId})`);
-            await createPeerConnection(user.socketId, user.userName, true);
+            console.log(`Connecting to ${user.userName} (admin: ${user.isAdmin})`);
+            try {
+              await createPeerConnection(user.socketId, user.userName, true, user.isAdmin);
+            } catch (error) {
+              console.error(`Failed to connect to ${user.userName}:`, error);
+            }
           }
         }
-      } else if (users.length > 0) {
-        // Сохраняем пользователей для подключения позже
-        console.log("Local stream not ready, saving users for later:", users);
-        setPendingUsers(users);
       }
     });
 
-    socket.on("user-joined", async ({ socketId, userName: remoteUserName }: { socketId: string, userName: string }) => {
-      console.log("User joined:", socketId, remoteUserName);
+    socket.on("user-joined", async ({ socketId, userName: remoteUserName, isAdmin: remoteIsAdmin }: { socketId: string, userName: string, isAdmin?: boolean }) => {
+      console.log("User joined:", remoteUserName);
       
       // Показываем уведомление о присоединении
       toast.success(`${remoteUserName} присоединился к комнате`, {
@@ -155,12 +196,17 @@ export default function Room() {
       
       // НЕ создаем соединение здесь - новый пользователь сам создаст соединения со всеми существующими
       // Мы просто ждем его offer
-      console.log(`Waiting for offer from ${remoteUserName} (${socketId})`);
     });
 
-    socket.on("offer", async (offer: RTCSessionDescriptionInit, fromSocketId: string, fromUserName: string) => {
-      console.log("Received offer from:", fromSocketId, fromUserName);
-      const pc = await createPeerConnection(fromSocketId, fromUserName, false);
+    socket.on("offer", async (offer: RTCSessionDescriptionInit, fromSocketId: string, fromUserName: string, fromIsAdmin?: boolean) => {
+      console.log("Received offer from:", fromUserName, "isAdmin:", fromIsAdmin);
+      
+      // Получаем или создаем peer connection
+      let pc = peerConnectionsRef.current.get(fromSocketId);
+      if (!pc) {
+        pc = await createPeerConnection(fromSocketId, fromUserName, false, fromIsAdmin);
+      }
+      
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -168,7 +214,7 @@ export default function Room() {
     });
 
     socket.on("answer", async (answer: RTCSessionDescriptionInit, fromSocketId: string, fromUserName: string) => {
-      console.log("Received answer from:", fromSocketId, fromUserName);
+      console.log("Received answer from:", fromUserName);
       const pc = peerConnectionsRef.current.get(fromSocketId);
       if (pc) {
         await pc.setRemoteDescription(new RTCSessionDescription(answer));
@@ -176,25 +222,25 @@ export default function Room() {
     });
 
     socket.on("ice-candidate", async (candidate: RTCIceCandidateInit, fromSocketId: string, fromUserName: string) => {
-      console.log("Received ICE candidate from:", fromSocketId, fromUserName);
       const pc = peerConnectionsRef.current.get(fromSocketId);
       if (pc) {
         await pc.addIceCandidate(new RTCIceCandidate(candidate));
       }
     });
 
-    socket.on("chat-message", (data: { messageId: string, userName: string, message: string, timestamp: Date }) => {
+    socket.on("chat-message", (data: { messageId: string, userName: string, message: string, timestamp: Date, isAdmin?: boolean }) => {
       console.log("Received chat message:", data);
       const newMessage = {
         id: data.messageId,
         userName: data.userName,
         message: data.message,
         timestamp: new Date(data.timestamp),
-        isEdited: false
+        isEdited: false,
+        isAdmin: data.isAdmin || false
       };
-      setLocalMessages(prev => {
+      setLocalMessages((prev: Array<{id: string, userName: string, message: string, timestamp: Date, isEdited?: boolean, isAdmin?: boolean}>) => {
         // Проверяем, не добавлено ли уже это сообщение
-        const exists = prev.some(msg => msg.id === newMessage.id);
+        const exists = prev.some((msg: {id: string, userName: string, message: string, timestamp: Date, isEdited?: boolean, isAdmin?: boolean}) => msg.id === newMessage.id);
         if (exists) return prev;
         return [...prev, newMessage];
       });
@@ -202,7 +248,7 @@ export default function Room() {
 
     socket.on("chat-message-update", (data: { messageId: string, message: string }) => {
       console.log("Received message update:", data);
-      setLocalMessages(prev => prev.map(msg => 
+      setLocalMessages((prev: Array<{id: string, userName: string, message: string, timestamp: Date, isEdited?: boolean, isAdmin?: boolean}>) => prev.map((msg: {id: string, userName: string, message: string, timestamp: Date, isEdited?: boolean, isAdmin?: boolean}) => 
         msg.id === data.messageId 
           ? { ...msg, message: data.message, isEdited: true }
           : msg
@@ -211,7 +257,7 @@ export default function Room() {
 
     socket.on("chat-message-delete", (data: { messageId: string }) => {
       console.log("Received message delete:", data);
-      setLocalMessages(prev => prev.filter(msg => msg.id !== data.messageId));
+      setLocalMessages((prev: Array<{id: string, userName: string, message: string, timestamp: Date, isEdited?: boolean, isAdmin?: boolean}>) => prev.filter((msg: {id: string, userName: string, message: string, timestamp: Date, isEdited?: boolean, isAdmin?: boolean}) => msg.id !== data.messageId));
     });
 
     socket.on("user-left", ({ socketId, userName }: { socketId: string, userName: string }) => {
@@ -231,7 +277,44 @@ export default function Room() {
       }
       
       // Удаляем пользователя из списка удаленных участников
-      setRemotePeers(prev => {
+      setRemotePeers((prev: Map<string, { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }>) => {
+        if (prev.has(socketId)) {
+          const newMap = new Map(prev);
+          newMap.delete(socketId);
+          return newMap;
+        }
+        return prev;
+      });
+    });
+
+    socket.on("kicked", ({ message }: { message: string }) => {
+      console.log("You were kicked from the room");
+      toast.error("Вы были удалены из комнаты", {
+        description: message,
+        duration: 5000,
+      });
+      // Перенаправляем на главную страницу
+      setTimeout(() => {
+        setLocation('/');
+      }, 3000);
+    });
+
+    socket.on("user-kicked", ({ socketId, userName: kickedUserName }: { socketId: string, userName: string }) => {
+      console.log("User was kicked:", kickedUserName);
+      toast.info(`${kickedUserName} был удален из комнаты администратором`, {
+        duration: 3000,
+      });
+      
+      // Закрываем peer connection
+      const pc = peerConnectionsRef.current.get(socketId);
+      if (pc) {
+        pc.close();
+        peerConnectionsRef.current.delete(socketId);
+        tracksAddedRef.current.delete(socketId);
+      }
+      
+      // Удаляем пользователя из списка удаленных участников
+      setRemotePeers((prev: Map<string, { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }>) => {
         if (prev.has(socketId)) {
           const newMap = new Map(prev);
           newMap.delete(socketId);
@@ -243,11 +326,11 @@ export default function Room() {
 
     return () => {
       socket.disconnect();
-      peerConnectionsRef.current.forEach(pc => pc.close());
+      peerConnectionsRef.current.forEach((pc: RTCPeerConnection) => pc.close());
       peerConnectionsRef.current.clear();
       tracksAddedRef.current.clear();
     };
-  }, [joined, roomCode, userName, localStream]);
+  }, [joined, roomCode, userName, localStream, setLocation]);
 
   // Обработка закрытия вкладки/браузера
   useEffect(() => {
@@ -264,9 +347,10 @@ export default function Room() {
     };
   }, []);
 
-  // Второй useEffect для получения медиа-потока
+  // Запрашиваем доступ к камере и микрофону при присоединении к комнате (опционально)
   useEffect(() => {
-    if (joined && localVideoRef.current && !localStream) {
+    if (joined && !localStream) {
+      console.log("Requesting media access...");
       navigator.mediaDevices.getUserMedia({ 
         video: { 
           width: { ideal: 1920 },
@@ -280,18 +364,28 @@ export default function Room() {
         } 
       })
         .then(stream => {
+          console.log("Media access granted, stream tracks:", stream.getTracks().length);
           setLocalStream(stream);
           if (localVideoRef.current) {
             localVideoRef.current.srcObject = stream;
           }
         })
-        .catch(err => console.error("Error accessing media devices:", err));
+        .catch(err => {
+          console.warn("Media access denied or not available:", err);
+          // Разрешаем вход в комнату без камеры/микрофона
+          toast.info("Вы можете присоединиться без камеры и микрофона", {
+            description: "Вы сможете включить их позже",
+            duration: 3000,
+          });
+          // Создаем пустой stream для совместимости
+          setLocalStream(null);
+        });
     }
   }, [joined, localStream]);
 
-  // Создаем соединения с ожидающими пользователями когда localStream готов
+  // Создаем соединения с ожидающими пользователями
   useEffect(() => {
-    if (localStream && pendingUsers.length > 0) {
+    if (pendingUsers.length > 0) {
       console.log("Creating connections with pending users:", pendingUsers);
       const createConnections = async () => {
         for (const user of pendingUsers) {
@@ -308,7 +402,7 @@ export default function Room() {
       };
       createConnections();
     }
-  }, [localStream, pendingUsers]);
+  }, [pendingUsers]);
 
   // Добавляем треки к существующим соединениям когда localStream становится доступным
   useEffect(() => {
@@ -317,11 +411,11 @@ export default function Room() {
       const addTracksAndRenegotiate = async () => {
         const promises: Promise<void>[] = [];
         
-        peerConnectionsRef.current.forEach((pc, socketId) => {
+        peerConnectionsRef.current.forEach((pc: RTCPeerConnection, socketId: string) => {
           // Проверяем, были ли уже добавлены треки к этому соединению
           if (!tracksAddedRef.current.get(socketId)) {
             console.log(`Adding tracks to peer connection ${socketId}`);
-            localStream.getTracks().forEach(track => {
+            localStream.getTracks().forEach((track: MediaStreamTrack) => {
               try {
                 pc.addTrack(track, localStream);
                 console.log(`Added track to ${socketId}: kind=${track.kind}`);
@@ -358,7 +452,7 @@ export default function Room() {
   // Синхронизация локального видео с состоянием videoEnabled
   useEffect(() => {
     if (localVideoRef.current && localStream) {
-      localStream.getVideoTracks().forEach(track => {
+      localStream.getVideoTracks().forEach((track: MediaStreamTrack) => {
         if (track.enabled !== videoEnabled) {
           console.log(`Syncing local video track: ${track.enabled} -> ${videoEnabled}`);
           track.enabled = videoEnabled;
@@ -380,11 +474,11 @@ export default function Room() {
     if (!joined || remotePeers.size === 0) return;
 
     const interval = setInterval(() => {
-      setRemotePeers(prev => {
+      setRemotePeers((prev: Map<string, { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }>) => {
         let changed = false;
         const newMap = new Map(prev);
         
-        prev.forEach((peer, socketId) => {
+        prev.forEach((peer: { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }, socketId: string) => {
           const videoTrack = peer.stream.getVideoTracks()[0];
           const audioTrack = peer.stream.getAudioTracks()[0];
           
@@ -411,7 +505,7 @@ export default function Room() {
         
         return changed ? newMap : prev;
       });
-    }, 500); // Проверяем каждые 500мс
+    }, 1000); // Проверяем каждые 1000мс для уменьшения нагрузки
 
     return () => clearInterval(interval);
   }, [joined, remotePeers.size]);
@@ -419,42 +513,37 @@ export default function Room() {
   // Функция для получения layout видео
   const getVideoLayout = () => {
     const totalParticipants = 1 + remotePeers.size; // локальный + удаленные
-    const participantsWithVideo = (videoEnabled ? 1 : 0) + Array.from(remotePeers.values()).filter(p => p.hasVideo).length;
+    const peerArray = Array.from(remotePeers.values()) as Array<{ stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }>;
+    const participantsWithVideo = (videoEnabled ? 1 : 0) + peerArray.filter((p: { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }) => p.hasVideo).length;
     const participantsWithoutVideo = totalParticipants - participantsWithVideo;
+    
+    const entriesArray = Array.from(remotePeers.entries()) as Array<[string, { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }]>;
     
     return {
       totalParticipants,
       participantsWithVideo,
       participantsWithoutVideo,
       hasLocalVideo: videoEnabled,
-      remoteWithVideo: Array.from(remotePeers.entries()).filter(([_, peer]) => peer.hasVideo),
-      remoteWithoutVideo: Array.from(remotePeers.entries()).filter(([_, peer]) => !peer.hasVideo)
+      remoteWithVideo: entriesArray.filter(([_socketId, peer]: [string, { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }]) => peer.hasVideo),
+      remoteWithoutVideo: entriesArray.filter(([_socketId, peer]: [string, { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }]) => !peer.hasVideo)
     };
   };
 
-  // Создаем ключ для кеширования на основе socketId всех участников
-  const participantsKey = useMemo(() => {
-    const hasLocal = 'local';
-    const remoteIds = Array.from(remotePeers.entries())
-      .map(([socketId]) => socketId)
-      .sort()
-      .join(',');
-    return `${hasLocal}|${remoteIds}`;
-  }, [remotePeers]);
-
+  // Создаем список участников видео
   const videoParticipants = useMemo(() => {
-    const participants = [];
+    const participants: Array<{ isLocal: boolean, userName: string, socketId: string }> = [];
     
     // Всегда добавляем локального пользователя
     participants.push({ isLocal: true, userName, socketId: 'local' });
     
     // Добавляем всех удаленных участников
-    Array.from(remotePeers.entries()).forEach(([socketId, peer]) => {
+    const entriesArray = Array.from(remotePeers.entries()) as Array<[string, { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }]>;
+    entriesArray.forEach(([socketId, peer]: [string, { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }]) => {
       participants.push({ isLocal: false, userName: peer.userName, socketId });
     });
     
     return participants;
-  }, [participantsKey, userName]);
+  }, [userName, remotePeers.size]);
 
   // Условные возвраты после всех хуков
   if (roomQuery.isLoading && !isDemoMode) {
@@ -508,7 +597,7 @@ export default function Room() {
     );
   }
 
-  const createPeerConnection = async (socketId: string, remoteUserName: string, isInitiator: boolean): Promise<RTCPeerConnection> => {
+  const createPeerConnection = async (socketId: string, remoteUserName: string, isInitiator: boolean, remoteIsAdmin?: boolean): Promise<RTCPeerConnection> => {
     // Проверяем, не существует ли уже подключение для этого пользователя
     if (peerConnectionsRef.current.has(socketId)) {
       console.log("Peer already exists, skipping duplicate connection", socketId);
@@ -521,18 +610,17 @@ export default function Room() {
 
     if (localStream) {
       console.log(`Adding ${localStream.getTracks().length} tracks to peer connection for ${remoteUserName}`);
-      localStream.getTracks().forEach(track => {
+      localStream.getTracks().forEach((track: MediaStreamTrack) => {
         pc.addTrack(track, localStream);
         console.log(`Added track: kind=${track.kind}, enabled=${track.enabled}, id=${track.id}`);
       });
       tracksAddedRef.current.set(socketId, true);
     } else {
-      console.warn("Local stream is not available yet");
+      console.log("Creating peer connection without local stream - user may join without camera/microphone");
       tracksAddedRef.current.set(socketId, false);
     }
 
     pc.ontrack = (event) => {
-      console.log("Received remote track from:", socketId);
       const stream = event.streams[0];
       const videoTrack = stream.getVideoTracks()[0];
       const audioTrack = stream.getAudioTracks()[0];
@@ -541,152 +629,26 @@ export default function Room() {
       const hasVideo = videoTrack && videoTrack.enabled && !videoTrack.muted;
       
       // Для аудио: включен, только если трек включен (track.enabled)
-      // НЕ проверяем track.muted
       const hasAudio = audioTrack && audioTrack.enabled;
       
-      setRemotePeers(prev => {
-        // Проверяем, если stream уже установлен для этого socketId
-        if (prev.has(socketId) && prev.get(socketId)!.stream === stream) {
-          console.log("Stream already set for", socketId, "- skipping update");
+      setRemotePeers((prev: Map<string, { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }>) => {
+        const existingPeer = prev.get(socketId);
+        
+        // Если peer уже существует с этим же stream - пропускаем обновление
+        if (existingPeer && existingPeer.stream === stream) {
           return prev;
         }
         
-        const existingPeer = prev.get(socketId);
-        // Если stream уже существует и не изменился, только обновляем статусы
-        if (existingPeer && existingPeer.stream === stream) {
-          // Если статусы не изменились, не обновляем
-          if (existingPeer.hasVideo === hasVideo && existingPeer.hasAudio === hasAudio) {
-            return prev;
-          }
-          // Создаем новый объект с обновленными статусами, но тем же stream
-          const newMap = new Map(prev);
-          newMap.set(socketId, { 
-            stream: existingPeer.stream, 
-            userName: existingPeer.userName, 
-            hasVideo, 
-            hasAudio 
-          });
-          return newMap;
-        }
-        
-        // Новый stream - создаем новый peer
+        // Peer не существует или stream другой - создаем новый
         const newMap = new Map(prev);
         newMap.set(socketId, { 
           stream, 
           userName: remoteUserName, 
           hasVideo, 
-          hasAudio 
+          hasAudio,
+          isAdmin: remoteIsAdmin
         });
         return newMap;
-      });
-      
-      // Отслеживаем изменения состояния треков только через события
-      stream.getVideoTracks().forEach(track => {
-        track.onended = () => {
-          setRemotePeers(prev => {
-            const peer = prev.get(socketId);
-            if (peer && peer.hasVideo) {
-              const newMap = new Map(prev);
-              newMap.set(socketId, { 
-                stream: peer.stream, 
-                userName: peer.userName, 
-                hasVideo: false, 
-                hasAudio: peer.hasAudio 
-              });
-              return newMap;
-            }
-            return prev;
-          });
-        };
-        
-        track.onmute = () => {
-          setRemotePeers(prev => {
-            const peer = prev.get(socketId);
-            if (peer && peer.hasVideo) {
-              const newMap = new Map(prev);
-              newMap.set(socketId, { 
-                stream: peer.stream, 
-                userName: peer.userName, 
-                hasVideo: false, 
-                hasAudio: peer.hasAudio 
-              });
-              return newMap;
-            }
-            return prev;
-          });
-        };
-        
-        track.onunmute = () => {
-          setRemotePeers(prev => {
-            const peer = prev.get(socketId);
-            if (peer && !peer.hasVideo) {
-              const newMap = new Map(prev);
-              newMap.set(socketId, { 
-                stream: peer.stream, 
-                userName: peer.userName, 
-                hasVideo: true, 
-                hasAudio: peer.hasAudio 
-              });
-              return newMap;
-            }
-            return prev;
-          });
-        };
-      });
-      
-      stream.getAudioTracks().forEach(track => {
-        track.onended = () => {
-          setRemotePeers(prev => {
-            const peer = prev.get(socketId);
-            if (peer && peer.hasAudio) {
-              const newMap = new Map(prev);
-              newMap.set(socketId, { 
-                stream: peer.stream, 
-                userName: peer.userName, 
-                hasVideo: peer.hasVideo, 
-                hasAudio: false 
-              });
-              return newMap;
-            }
-            return prev;
-          });
-        };
-        
-        track.onmute = () => {
-          console.log(`Audio muted for ${socketId}`);
-          setRemotePeers(prev => {
-            const peer = prev.get(socketId);
-            if (peer && peer.hasAudio) {
-              const newMap = new Map(prev);
-              newMap.set(socketId, { 
-                stream: peer.stream, 
-                userName: peer.userName, 
-                hasVideo: peer.hasVideo, 
-                hasAudio: false 
-              });
-              return newMap;
-            }
-            return prev;
-          });
-        };
-        
-        track.onunmute = () => {
-          console.log(`Audio unmuted for ${socketId}`);
-          setRemotePeers(prev => {
-            const peer = prev.get(socketId);
-            if (peer && !peer.hasAudio) {
-              const newMap = new Map(prev);
-              newMap.set(socketId, { 
-                stream: peer.stream, 
-                userName: peer.userName, 
-                hasVideo: peer.hasVideo, 
-                hasAudio: true 
-              });
-              return newMap;
-            }
-            return prev;
-          });
-        };
       });
     };
 
@@ -697,27 +659,27 @@ export default function Room() {
     };
 
     pc.onconnectionstatechange = () => {
-      console.log(`Connection state changed for ${socketId}:`, pc.connectionState);
       if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-        console.log(`Removing user ${socketId} due to connection state: ${pc.connectionState}`);
+        console.log(`Connection closed for ${socketId}:`, pc.connectionState);
         
-        // Удаляем пользователя из списка удаленных участников
-        setRemotePeers(prev => {
-          if (prev.has(socketId)) {
-            const newMap = new Map(prev);
-            newMap.delete(socketId);
-            return newMap;
-          }
-          return prev;
-        });
-        
-        // Удаляем peer connection
-        peerConnectionsRef.current.delete(socketId);
-        tracksAddedRef.current.delete(socketId);
-      }
-    };
+      // Удаляем пользователя из списка удаленных участников
+      setRemotePeers((prev: Map<string, { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }>) => {
+        if (prev.has(socketId)) {
+          const newMap = new Map(prev);
+          newMap.delete(socketId);
+          return newMap;
+        }
+        return prev;
+      });
+      
+      // Удаляем peer connection
+      peerConnectionsRef.current.delete(socketId);
+      tracksAddedRef.current.delete(socketId);
+    }
+  };
 
     if (isInitiator) {
+      console.log(`Sending offer to ${remoteUserName}`);
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       if (socketRef.current) {
@@ -781,10 +743,11 @@ export default function Room() {
       userName: userName,
       message: message.trim(),
       timestamp: new Date(),
-      isEdited: false
+      isEdited: false,
+      isAdmin: isAdmin
     };
     
-    setLocalMessages(prev => [...prev, newMessage]);
+    setLocalMessages((prev: Array<{id: string, userName: string, message: string, timestamp: Date, isEdited?: boolean, isAdmin?: boolean}>) => [...prev, newMessage]);
     
     // Отправляем через Socket.io для других участников
     if (socketRef.current) {
@@ -793,7 +756,8 @@ export default function Room() {
         messageId,
         userName: userName,
         message: message.trim(),
-        timestamp: newMessage.timestamp
+        timestamp: newMessage.timestamp,
+        isAdmin: isAdmin
       });
     }
     
@@ -808,7 +772,7 @@ export default function Room() {
   const handleSaveEdit = () => {
     if (!editText.trim() || !editingMessageId) return;
     
-    setLocalMessages(prev => prev.map(msg => 
+    setLocalMessages((prev: Array<{id: string, userName: string, message: string, timestamp: Date, isEdited?: boolean, isAdmin?: boolean}>) => prev.map((msg: {id: string, userName: string, message: string, timestamp: Date, isEdited?: boolean, isAdmin?: boolean}) => 
       msg.id === editingMessageId 
         ? { ...msg, message: editText.trim(), isEdited: true }
         : msg
@@ -833,7 +797,7 @@ export default function Room() {
   };
 
   const handleDeleteMessage = (messageId: string) => {
-    setLocalMessages(prev => prev.filter(msg => msg.id !== messageId));
+    setLocalMessages((prev: Array<{id: string, userName: string, message: string, timestamp: Date, isEdited?: boolean, isAdmin?: boolean}>) => prev.filter((msg: {id: string, userName: string, message: string, timestamp: Date, isEdited?: boolean, isAdmin?: boolean}) => msg.id !== messageId));
     
     // Отправляем удаление через Socket.io
     if (socketRef.current) {
@@ -844,11 +808,28 @@ export default function Room() {
     }
   };
 
+  const handleKickUser = (socketId: string, userName: string) => {
+    if (!isAdmin) {
+      toast.error("Только администратор может удалять участников");
+      return;
+    }
+    
+    if (window.confirm(`Вы уверены, что хотите удалить ${userName} из комнаты?`)) {
+      if (socketRef.current) {
+        socketRef.current.emit("kick-user", {
+          roomCode,
+          targetSocketId: socketId
+        });
+        toast.success(`${userName} будет удален из комнаты`);
+      }
+    }
+  };
+
   const toggleAudio = () => {
     if (localStream) {
       const newState = !audioEnabled;
       console.log(`Toggling audio to: ${newState}`);
-      localStream.getAudioTracks().forEach(track => {
+      localStream.getAudioTracks().forEach((track: MediaStreamTrack) => {
         track.enabled = newState;
         console.log(`Audio track enabled: ${track.enabled}, muted: ${track.muted}`);
       });
@@ -860,7 +841,7 @@ export default function Room() {
     if (localStream) {
       const newState = !videoEnabled;
       console.log(`Toggling video to: ${newState}`);
-      localStream.getVideoTracks().forEach(track => {
+      localStream.getVideoTracks().forEach((track: MediaStreamTrack) => {
         track.enabled = newState;
         console.log(`Video track enabled: ${track.enabled}, muted: ${track.muted}`);
       });
@@ -880,7 +861,7 @@ export default function Room() {
     
     return (
       <div className={`h-full grid ${getGridCols(videoParticipants.length)} gap-4`}>
-        {videoParticipants.map((participant) => {
+        {videoParticipants.map((participant: { isLocal: boolean, userName: string, socketId: string }) => {
           const remotePeer = participant.isLocal ? undefined : remotePeers.get(participant.socketId);
           
           // Пропускаем если нет удаленного пользователя
@@ -891,7 +872,7 @@ export default function Room() {
           const hasVideo = participant.isLocal ? videoEnabled : (remotePeer?.hasVideo ?? false);
           
           return (
-            <div key={participant.socketId} className="relative bg-black rounded-xl overflow-hidden shadow-lg">
+            <div key={participant.socketId} className="relative bg-black rounded-xl overflow-hidden shadow-lg aspect-video">
               {/* Видео элемент - всегда в DOM, видимость контролируется через CSS */}
               {participant.isLocal ? (
                 <video
@@ -900,20 +881,20 @@ export default function Room() {
                   muted
                   playsInline
                   className={`w-full h-full object-cover ${hasVideo ? 'block' : 'hidden'}`}
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
                 />
               ) : (
-                <div className={`w-full h-full ${hasVideo ? 'block' : 'hidden'}`}>
-                  <RemoteVideo 
-                    key={`remote-${participant.socketId}`}
-                    remotePeer={remotePeer}
-                    socketId={participant.socketId}
-                  />
-                </div>
+                <RemoteVideo 
+                  key={`remote-${participant.socketId}`}
+                  remotePeer={remotePeer}
+                  socketId={participant.socketId}
+                  className={`w-full h-full ${hasVideo ? 'block' : 'hidden'}`}
+                />
               )}
               
               {/* Черный фон с именем и иконкой, когда камера отключена */}
               {!hasVideo && (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-black absolute inset-0">
+                <div className="w-full h-full flex flex-col items-center justify-center bg-black absolute inset-0 z-10">
                   {/* Иконка отключенной камеры */}
                   <div className="mb-4">
                     <VideoOff className="w-20 h-20 text-gray-400" />
@@ -922,6 +903,13 @@ export default function Room() {
                   {/* Имя пользователя */}
                   <div className="text-white text-lg font-medium flex items-center gap-2">
                     {participant.userName}
+                    {/* Индикатор администратора */}
+                    {participant.isLocal && isAdmin && (
+                      <Shield className="w-5 h-5 text-yellow-400" />
+                    )}
+                    {!participant.isLocal && remotePeer && remotePeer.isAdmin && (
+                      <Shield className="w-5 h-5 text-yellow-400" />
+                    )}
                     {/* Индикатор отключенного микрофона */}
                     {participant.isLocal && !audioEnabled && (
                       <MicOff className="w-5 h-5 text-red-400" />
@@ -944,6 +932,13 @@ export default function Room() {
               {hasVideo && (
                 <div className="absolute bottom-4 left-4 bg-black bg-opacity-70 text-white px-3 py-1 rounded-lg text-sm font-medium flex items-center gap-2">
                   {participant.userName} {participant.isLocal ? '(Вы)' : ''}
+                  {/* Индикатор администратора */}
+                  {participant.isLocal && isAdmin && (
+                    <Shield className="w-4 h-4 text-yellow-400" />
+                  )}
+                  {!participant.isLocal && remotePeer && remotePeer.isAdmin && (
+                    <Shield className="w-4 h-4 text-yellow-400" />
+                  )}
                   {/* Значок отключенного микрофона рядом с именем */}
                   {participant.isLocal && !audioEnabled && (
                     <MicOff className="w-4 h-4 text-red-400" />
@@ -961,7 +956,13 @@ export default function Room() {
   };
   
   // Компонент для удаленного видео
-  const RemoteVideo = memo(({ remotePeer, socketId }: { remotePeer?: { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean }, socketId: string }) => {
+  interface RemoteVideoProps {
+    remotePeer?: { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean };
+    socketId: string;
+    className?: string;
+  }
+  
+  const RemoteVideo = memo(({ remotePeer, socketId, className }: RemoteVideoProps) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
     
@@ -988,11 +989,12 @@ export default function Room() {
         ref={videoRef}
         autoPlay
         playsInline
-        className="w-full h-full object-cover"
+        className={className || "w-full h-full object-cover"}
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
       />
     );
-  }, (prevProps, nextProps) => {
-    // Сравниваем socketId и stream - предотвращаем ненужные ререндеры
+  }, (prevProps: RemoteVideoProps, nextProps: RemoteVideoProps) => {
+    // Сравниваем socketId, stream, hasVideo и hasAudio - предотвращаем ненужные ререндеры
     const prevStream = prevProps.remotePeer?.stream;
     const nextStream = nextProps.remotePeer?.stream;
     
@@ -1000,10 +1002,12 @@ export default function Room() {
     // False означает "ререндерить" - компонент изменился
     const streamsEqual = prevStream === nextStream;
     const socketIdsEqual = prevProps.socketId === nextProps.socketId;
+    const hasVideoEqual = prevProps.remotePeer?.hasVideo === nextProps.remotePeer?.hasVideo;
+    const hasAudioEqual = prevProps.remotePeer?.hasAudio === nextProps.remotePeer?.hasAudio;
     
-    // Ререндерим только если изменился stream или socketId
-    // НЕ ререндерим если изменились только hasVideo/hasAudio
-    return streamsEqual && socketIdsEqual;
+    // Ререндерим только если изменился stream, socketId, hasVideo или hasAudio
+    // Не ререндерим если изменился только userName или className (className меняется вместе с hasVideo)
+    return streamsEqual && socketIdsEqual && hasVideoEqual && hasAudioEqual;
   });
 
   if (!joined) {
@@ -1028,8 +1032,8 @@ export default function Room() {
               type="text"
               placeholder={currentUser ? "Ваше имя (можно изменить)" : "Введите ваше имя"}
               value={userName}
-              onChange={(e) => setUserName(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && handleJoin()}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUserName(e.target.value)}
+                      onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleJoin()}
               className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
             />
             <Button 
@@ -1080,6 +1084,12 @@ export default function Room() {
           </div>
           
           <div className="flex items-center space-x-2">
+            {isAdmin && (
+              <span className="text-xs bg-yellow-900 text-yellow-200 px-2 py-1 rounded-full font-medium flex items-center gap-1">
+                <Shield className="w-3 h-3" />
+                АДМИНИСТРАТОР
+              </span>
+            )}
             {isDemoMode && (
               <span className="text-xs bg-yellow-900 text-yellow-200 px-2 py-1 rounded-full font-medium">
                 ГОСТЕВОЙ РЕЖИМ
@@ -1169,33 +1179,55 @@ export default function Room() {
                       Пока нет сообщений
                     </div>
                   ) : (
-                    localMessages.map((msg) => {
+                    localMessages.map((msg: {id: string, userName: string, message: string, timestamp: Date, isEdited?: boolean, isAdmin?: boolean}) => {
                       const isOwnMessage = msg.userName === userName;
                       const isEditing = editingMessageId === msg.id;
+                      const isMessageFromAdmin = msg.userName === userName && isAdmin;
+                      const isFromRemoteAdmin = !isOwnMessage && msg.isAdmin;
                       
                       return (
                         <div 
                           key={msg.id} 
                           className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
                         >
-                          <div className={`bg-white rounded-lg p-3 shadow-sm relative max-w-[80%] ${isOwnMessage ? 'ml-auto' : 'mr-auto'} ${isOwnMessage ? 'hover:shadow-md transition-shadow cursor-pointer' : ''}`}
+                          <div className={`bg-white rounded-lg p-3 shadow-sm relative max-w-[80%] ${isOwnMessage ? 'ml-auto' : 'mr-auto'} ${isOwnMessage ? 'hover:shadow-md transition-shadow cursor-pointer' : ''} ${isFromRemoteAdmin ? 'border-l-4 border-yellow-500' : ''}`}
                             onClick={() => {
                               if (!isEditing && isOwnMessage) {
                                 handleEditMessage(msg.id, msg.message);
                               }
                             }}
                           >
-                            <div className="flex items-center space-x-2 mb-1">
-                              <span className="font-medium text-blue-600 text-sm">
-                                {msg.userName}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                {msg.timestamp.toLocaleTimeString()}
-                              </span>
-                              {msg.isEdited && (
-                                <span className="text-xs text-gray-400 italic">
-                                  (изменено)
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-medium text-blue-600 text-sm">
+                                  {msg.userName}
                                 </span>
+                                {(isMessageFromAdmin || isFromRemoteAdmin) && (
+                                  <Shield className="w-3 h-3 text-yellow-500" />
+                                )}
+                                <span className="text-xs text-gray-400">
+                                  {msg.timestamp.toLocaleTimeString()}
+                                </span>
+                                {msg.isEdited && (
+                                  <span className="text-xs text-gray-400 italic">
+                                    (изменено)
+                                  </span>
+                                )}
+                              </div>
+                              {/* Кнопка удаления для администратора (чужие сообщения) */}
+                              {isAdmin && !isOwnMessage && !isEditing && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (window.confirm(`Удалить сообщение от ${msg.userName}?`)) {
+                                      handleDeleteMessage(msg.id);
+                                    }
+                                  }}
+                                  className="text-red-500 hover:text-red-700 transition-colors p-1"
+                                  title="Удалить сообщение"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
                               )}
                             </div>
                             
@@ -1204,15 +1236,15 @@ export default function Room() {
                               <div className="space-y-2">
                                 <Input
                                   value={editText}
-                                  onChange={(e) => setEditText(e.target.value)}
-                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditText(e.target.value)}
+                                  onClick={(e: React.MouseEvent<HTMLInputElement>) => e.stopPropagation()}
                                   className="text-gray-800 text-sm bg-white border-gray-300"
                                   autoFocus
                                 />
                                 <div className="flex gap-2 flex-wrap">
                                   <Button
                                     size="sm"
-                                    onClick={(e) => {
+                                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                                       e.stopPropagation();
                                       handleSaveEdit();
                                     }}
@@ -1223,7 +1255,7 @@ export default function Room() {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={(e) => {
+                                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                                       e.stopPropagation();
                                       handleCancelEdit();
                                     }}
@@ -1234,7 +1266,7 @@ export default function Room() {
                                   <Button
                                     size="sm"
                                     variant="destructive"
-                                    onClick={(e) => {
+                                    onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                                       e.stopPropagation();
                                       handleDeleteMessage(msg.id);
                                     }}
@@ -1273,8 +1305,8 @@ export default function Room() {
                       type="text"
                       placeholder="Написать сообщение..."
                       value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMessage(e.target.value)}
+                      onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSendMessage()}
                       className="flex-1 bg-gray-700 border-gray-600 text-white placeholder-gray-400"
                     />
                     <Button 
@@ -1307,8 +1339,17 @@ export default function Room() {
                       )}
                     </div>
                     <div className="flex-1">
-                      <p className="text-white font-medium">{userName}</p>
-                      <p className="text-gray-400 text-xs">Вы</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-white font-medium">{userName}</p>
+                        {isAdmin && (
+                          <div title="Администратор">
+                            <Shield className="w-4 h-4 text-yellow-400" />
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-gray-400 text-xs">
+                        {isAdmin ? 'Администратор' : 'Вы'}
+                      </p>
                     </div>
                     <div className="flex space-x-1">
                       {audioEnabled ? (
@@ -1324,27 +1365,47 @@ export default function Room() {
                     </div>
                   </div>
                   
-                  {Array.from(remotePeers.entries()).map(([socketId, peer]) => (
-                    <div key={socketId} className="flex items-center space-x-3 p-2 rounded-lg bg-gray-700">
+                  {(Array.from(remotePeers.entries()) as Array<[string, { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }]>).map(([socketId, peer]: [string, { stream: MediaStream, userName: string, hasVideo: boolean, hasAudio: boolean, isAdmin?: boolean }]) => (
+                    <div key={socketId} className="flex items-center space-x-3 p-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors">
                       <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center">
                         <span className="text-xs font-medium text-white">
                           {peer.userName.charAt(0).toUpperCase()}
                         </span>
                       </div>
                       <div className="flex-1">
-                        <p className="text-white font-medium">{peer.userName}</p>
-                        <p className="text-gray-400 text-xs">Участник</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-white font-medium">{peer.userName}</p>
+                          {peer.isAdmin && (
+                            <div title="Администратор">
+                              <Shield className="w-4 h-4 text-yellow-400" />
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-gray-400 text-xs">{peer.isAdmin ? 'Администратор' : 'Участник'}</p>
                       </div>
-                      <div className="flex space-x-1">
-                        {peer.hasAudio ? (
-                          <Mic className="w-4 h-4 text-green-400" />
-                        ) : (
-                          <MicOff className="w-4 h-4 text-red-400" />
-                        )}
-                        {peer.hasVideo ? (
-                          <Video className="w-4 h-4 text-green-400" />
-                        ) : (
-                          <VideoOff className="w-4 h-4 text-red-400" />
+                      <div className="flex items-center space-x-2">
+                        <div className="flex space-x-1">
+                          {peer.hasAudio ? (
+                            <Mic className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <MicOff className="w-4 h-4 text-red-400" />
+                          )}
+                          {peer.hasVideo ? (
+                            <Video className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <VideoOff className="w-4 h-4 text-red-400" />
+                          )}
+                        </div>
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleKickUser(socketId, peer.userName)}
+                            className="h-8 w-8 p-0 text-red-400 hover:text-red-500 hover:bg-red-500/20"
+                            title="Удалить участника"
+                          >
+                            <UserX className="w-4 h-4" />
+                          </Button>
                         )}
                       </div>
                     </div>

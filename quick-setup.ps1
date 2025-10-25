@@ -99,3 +99,6 @@ Write-Host "=== Setup Complete ===" -ForegroundColor Green
 Write-Host "Your conference app will be available at: http://$VPS_HOST:3000" -ForegroundColor Green
 
 
+
+
+

@@ -4,6 +4,9 @@ import { Server as SocketIOServer } from "socket.io";
 // Хранилище созданных комнат в памяти (для демо-режима)
 export const createdRooms = new Set<string>();
 
+// Хранилище владельцев комнат (roomCode -> ownerId)
+export const roomOwners = new Map<string, number>();
+
 export function initializeSocket(httpServer: HTTPServer) {
   const io = new SocketIOServer(httpServer, {
     cors: {
@@ -14,23 +17,28 @@ export function initializeSocket(httpServer: HTTPServer) {
 
   // Хранилище имен пользователей по socket ID
   const userNames = new Map<string, string>();
+  
+  // Хранилище флагов администратора по socket ID
+  const userAdmins = new Map<string, boolean>();
 
   io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
-    socket.on("join-room", (roomCode: string, userName: string) => {
+    socket.on("join-room", (roomCode: string, userName: string, isAdmin: boolean = false) => {
       socket.join(roomCode);
       userNames.set(socket.id, userName);
+      userAdmins.set(socket.id, isAdmin);
       
       // Отправляем список существующих участников новому пользователю
-      const existingUsers: Array<{ socketId: string, userName: string }> = [];
+      const existingUsers: Array<{ socketId: string, userName: string, isAdmin: boolean }> = [];
       const room = io.sockets.adapter.rooms.get(roomCode);
       if (room) {
         room.forEach((socketId) => {
           if (socketId !== socket.id) {
             const existingUserName = userNames.get(socketId);
+            const existingIsAdmin = userAdmins.get(socketId) || false;
             if (existingUserName) {
-              existingUsers.push({ socketId, userName: existingUserName });
+              existingUsers.push({ socketId, userName: existingUserName, isAdmin: existingIsAdmin });
             }
           }
         });
@@ -40,13 +48,14 @@ export function initializeSocket(httpServer: HTTPServer) {
       socket.emit("existing-users", existingUsers);
       
       // Уведомляем существующих участников о новом пользователе
-      socket.to(roomCode).emit("user-joined", { socketId: socket.id, userName });
-      console.log(`${userName} joined room ${roomCode}`);
+      socket.to(roomCode).emit("user-joined", { socketId: socket.id, userName, isAdmin });
+      console.log(`${userName} joined room ${roomCode} (admin: ${isAdmin})`);
     });
 
     socket.on("offer", (roomCode: string, offer: RTCSessionDescriptionInit, targetSocketId: string) => {
       const userName = userNames.get(socket.id) || "Unknown User";
-      socket.to(targetSocketId).emit("offer", offer, socket.id, userName);
+      const isAdmin = userAdmins.get(socket.id) || false;
+      socket.to(targetSocketId).emit("offer", offer, socket.id, userName, isAdmin);
     });
 
     socket.on("answer", (roomCode: string, answer: RTCSessionDescriptionInit, targetSocketId: string) => {
@@ -74,6 +83,21 @@ export function initializeSocket(httpServer: HTTPServer) {
       console.log(`Chat message deleted in ${data.roomCode}: ${data.messageId}`);
     });
 
+    socket.on("kick-user", (data: { roomCode: string, targetSocketId: string }) => {
+      // Находим socket пользователя, которого нужно выгнать
+      const targetSocket = io.sockets.sockets.get(data.targetSocketId);
+      if (targetSocket) {
+        const kickedUserName = userNames.get(data.targetSocketId) || "Unknown User";
+        // Уведомляем пользователя, что его выгнали
+        targetSocket.emit("kicked", { message: "Вы были удалены из комнаты администратором" });
+        // Отключаем пользователя
+        targetSocket.disconnect();
+        // Уведомляем остальных участников
+        socket.to(data.roomCode).emit("user-kicked", { socketId: data.targetSocketId, userName: kickedUserName });
+        console.log(`User ${kickedUserName} (${data.targetSocketId}) was kicked from room ${data.roomCode}`);
+      }
+    });
+
     socket.on("disconnect", () => {
       console.log("User disconnected:", socket.id);
       const userName = userNames.get(socket.id);
@@ -82,6 +106,7 @@ export function initializeSocket(httpServer: HTTPServer) {
         socket.broadcast.emit("user-left", { socketId: socket.id, userName });
       }
       userNames.delete(socket.id);
+      userAdmins.delete(socket.id);
     });
   });
 

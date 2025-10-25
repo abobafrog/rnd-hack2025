@@ -56,3 +56,6 @@ Write-Host "To view logs: ssh $VPS_USER@$VPS_HOST 'cd $APP_DIR && pm2 logs confe
 Write-Host "To restart: ssh $VPS_USER@$VPS_HOST 'cd $APP_DIR && pm2 restart conference-app'" -ForegroundColor Yellow
 
 
+
+
+

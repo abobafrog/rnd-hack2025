@@ -61,6 +61,7 @@ export default function Home() {
   const [editAvatar, setEditAvatar] = useState("");
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   useEffect(() => {
     // Функция для загрузки пользователя
@@ -98,6 +99,23 @@ export default function Home() {
       clearInterval(interval);
     };
   }, []);
+
+  // Закрываем меню профиля при клике вне его
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showProfileMenu && !(event.target as Element).closest('.profile-menu-container')) {
+        setShowProfileMenu(false);
+      }
+    };
+
+    if (showProfileMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProfileMenu]);
 
   // Очищаем ошибку формы при смене режима
   useEffect(() => {
@@ -450,7 +468,7 @@ export default function Home() {
                   type="text"
                   placeholder="Ваше имя"
                   value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormName(e.target.value)}
                   required
                   className="h-11 bg-gray-700 border-gray-600 text-white placeholder-gray-400"
                 />
@@ -459,7 +477,7 @@ export default function Home() {
                 type="email"
                 placeholder="Email"
                 value={formEmail}
-                onChange={(e) => setFormEmail(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormEmail(e.target.value)}
                 required
                 className="h-11 bg-gray-700 border-gray-600 text-white placeholder-gray-400"
               />
@@ -467,7 +485,7 @@ export default function Home() {
                 type="password"
                 placeholder="Пароль"
                 value={formPassword}
-                onChange={(e) => setFormPassword(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormPassword(e.target.value)}
                 required
                 className="h-11 bg-gray-700 border-gray-600 text-white placeholder-gray-400"
               />
@@ -522,42 +540,51 @@ export default function Home() {
                 </span>
               )}
               <Menu className="w-5 h-5 text-gray-400 cursor-pointer hover:text-white" />
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700 transition-colors relative group">
-                {user.avatar ? (
-                  <img src={user.avatar} alt={user.name} className="w-full h-full rounded-full object-cover" />
-                ) : (
-                  <span className="text-sm font-medium text-white">
-                    {user.name.charAt(0).toUpperCase()}
-                  </span>
-                )}
-                <div className="absolute top-full right-0 mt-2 w-56 bg-gray-800 rounded-lg shadow-lg border border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                  <div className="p-3 border-b border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors" onClick={handleEditProfileClick}>
-                    <p className="text-sm font-semibold text-white">{user.name}</p>
-                    {user.email && <p className="text-xs text-gray-400">{user.email}</p>}
-                  </div>
-                  {!user.isDemo && (
-                    <button
-                      onClick={handleEditProfileClick}
-                      className="w-full text-left px-3 py-2 text-sm text-blue-400 hover:bg-gray-700 transition-colors flex items-center gap-2"
-                    >
-                      <Edit className="w-4 h-4" />
-                      Редактировать профиль
-                    </button>
+              <div className="profile-menu-container relative">
+                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700 transition-colors">
+                  <div 
+                    className="w-full h-full rounded-full"
+                    onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  >
+                  {user.avatar ? (
+                    <img src={user.avatar} alt={user.name} className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    <span className="text-sm font-medium text-white">
+                      {user.name.charAt(0).toUpperCase()}
+                    </span>
                   )}
-                  <button
-                    onClick={handleLogout}
-                    className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-900 transition-colors"
-                  >
-                    Выйти
-                  </button>
-                  <button
-                    onClick={handleClearAllData}
-                    className="w-full text-left px-3 py-2 text-sm text-orange-400 hover:bg-orange-900 transition-colors flex items-center gap-2"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Очистить все данные
-                  </button>
+                  </div>
                 </div>
+                {showProfileMenu && (
+                  <div className="absolute top-full right-0 mt-2 w-56 bg-gray-800 rounded-lg shadow-lg border border-gray-700 z-50">
+                    <div className="p-3 border-b border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors" onClick={handleEditProfileClick}>
+                      <p className="text-sm font-semibold text-white">{user.name}</p>
+                      {user.email && <p className="text-xs text-gray-400">{user.email}</p>}
+                    </div>
+                    {!user.isDemo && (
+                      <button
+                        onClick={handleEditProfileClick}
+                        className="w-full text-left px-3 py-2 text-sm text-blue-400 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                      >
+                        <Edit className="w-4 h-4" />
+                        Редактировать профиль
+                      </button>
+                    )}
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-900 transition-colors"
+                    >
+                      Выйти
+                    </button>
+                    <button
+                      onClick={handleClearAllData}
+                      className="w-full text-left px-3 py-2 text-sm text-orange-400 hover:bg-orange-900 transition-colors flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Очистить все данные
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -609,11 +636,11 @@ export default function Home() {
                   type="text"
                   placeholder="Введите код встречи"
                   value={roomCode}
-                  onChange={(e) => {
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                     setRoomCode(e.target.value);
                     setError(null);
                   }}
-                  onKeyDown={(e) => e.key === "Enter" && handleJoinMeeting()}
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleJoinMeeting()}
                   className={`flex-1 bg-gray-800 border-gray-700 text-white placeholder-gray-400 ${error ? 'border-red-500 focus-visible:border-red-500' : ''}`}
                 />
                 <Button
@@ -678,7 +705,7 @@ export default function Home() {
                       type="text"
                       placeholder="https://example.com/avatar.jpg"
                       value={editAvatar}
-                      onChange={(e) => setEditAvatar(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditAvatar(e.target.value)}
                       className="flex-1 bg-gray-700 border-gray-600 text-white placeholder-gray-400"
                     />
                   </div>
@@ -691,7 +718,7 @@ export default function Home() {
                     type="text"
                     placeholder="Ваше имя"
                     value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditName(e.target.value)}
                     required
                     className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
                   />
@@ -704,7 +731,7 @@ export default function Home() {
                     type="email"
                     placeholder="your@email.com"
                     value={editEmail}
-                    onChange={(e) => setEditEmail(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditEmail(e.target.value)}
                     required
                     className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
                   />
@@ -717,7 +744,7 @@ export default function Home() {
                     type="password"
                     placeholder="Оставьте пустым, чтобы не менять"
                     value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditPassword(e.target.value)}
                     className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
                   />
                 </div>

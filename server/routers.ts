@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { createRoom, getRoomByCode, addParticipant, getRoomParticipants, addChatMessage, getChatMessages, getAllRooms } from "./db";
-import { createdRooms } from "./socket";
+import { createdRooms, roomOwners } from "./socket";
 
 export const appRouter = router({
   system: systemRouter,
@@ -22,14 +22,17 @@ export const appRouter = router({
 
   room: router({
     create: publicProcedure
-      .input(z.object({ name: z.string() }))
-      .mutation(async ({ input }) => {
+      .input(z.object({ name: z.string(), userId: z.number().optional() }))
+      .mutation(async ({ input, ctx }) => {
         const roomCode = Math.random().toString(36).substring(2, 10);
+        // Используем userId из контекста (если есть), из input или дефолтное значение 1
+        const ownerId = ctx.user?.id || input.userId || 1;
+        
         try {
           await createRoom({
             roomCode,
             name: input.name,
-            ownerId: 1, // Демо-режим: используем ID 1
+            ownerId,
           });
         } catch (error) {
           // В демо-режиме продолжаем работу даже если база данных недоступна
@@ -37,7 +40,9 @@ export const appRouter = router({
         }
         // Сохраняем комнату в памяти для проверки существования
         createdRooms.add(roomCode);
-        return { roomCode };
+        // Сохраняем владельца комнаты
+        roomOwners.set(roomCode, ownerId);
+        return { roomCode, ownerId };
       }),
     
     get: publicProcedure
@@ -52,11 +57,12 @@ export const appRouter = router({
             throw new Error("Room not found");
           }
           // Возвращаем демо-комнату если она была создана
+          const demoOwnerId = roomOwners.get(input.roomCode) || 1;
           return {
             id: Math.floor(Math.random() * 1000) + 1,
             roomCode: input.roomCode,
             name: `Демо комната ${input.roomCode}`,
-            ownerId: 1,
+            ownerId: demoOwnerId,
             createdAt: new Date(),
             updatedAt: new Date()
           };

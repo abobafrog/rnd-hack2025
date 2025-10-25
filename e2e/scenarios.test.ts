@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { setupTestDatabase } from "../server/test-setup";
 import { appRouter } from "../server/routers";
 import { createContext } from "../server/_core/context";
-import { rooms, roomParticipants, chatMessages, users } from "../../drizzle/schema";
+import { rooms, roomParticipants, chatMessages, users } from "../drizzle/schema";
 
 describe("End-to-End Scenarios", () => {
   let db: any;
@@ -19,10 +19,14 @@ describe("End-to-End Scenarios", () => {
       openId: "test-user-1",
       name: "Room Owner",
       email: "owner@example.com",
-      role: "user" as const
+      loginMethod: "test",
+      role: "user" as const,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date()
     };
 
-    const context = await createContext({ req: mockReq, res: mockRes });
+    const context = await createContext({ req: mockReq, res: mockRes, info: {} as any });
     context.user = mockUser;
     
     router = appRouter.createCaller(context);

@@ -29,7 +29,34 @@ export default function CreateRoom() {
     setError(null);
     
     try {
-      const result = await createRoomMutation.mutateAsync({ name: roomName });
+      // Получаем текущего пользователя
+      const savedUser = localStorage.getItem("conference_user");
+      let userId = 1; // Дефолтное значение
+      
+      if (savedUser) {
+        const userData = JSON.parse(savedUser);
+        // Используем ID пользователя или генерируем уникальный ID на основе имени
+        if (userData.id && !userData.isDemo) {
+          userId = typeof userData.id === 'string' ? parseInt(userData.id) : userData.id;
+        } else {
+          // Для демо-пользователей создаем уникальный ID на основе имени
+          userId = userData.name ? userData.name.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) : 1;
+        }
+      }
+      
+      const result = await createRoomMutation.mutateAsync({ 
+        name: roomName,
+        userId: userId
+      });
+      
+      // Сохраняем информацию о созданной комнате в localStorage
+      if (savedUser) {
+        const userData = JSON.parse(savedUser);
+        const roomOwners = JSON.parse(localStorage.getItem("room_owners") || "{}");
+        roomOwners[result.roomCode] = result.ownerId || userData.id || userData.name || "unknown";
+        localStorage.setItem("room_owners", JSON.stringify(roomOwners));
+      }
+      
       setLocation(`/room/${result.roomCode}`);
     } catch (error) {
       console.error("Failed to create room:", error);
@@ -77,11 +104,11 @@ export default function CreateRoom() {
             type="text"
             placeholder="Название комнаты"
             value={roomName}
-            onChange={(e) => {
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
               setRoomName(e.target.value);
               setError(null);
             }}
-            onKeyPress={(e) => e.key === "Enter" && handleCreate()}
+            onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleCreate()}
             className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
           />
           
