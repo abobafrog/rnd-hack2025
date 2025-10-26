@@ -15,21 +15,19 @@
 
 - **Frontend**: React 19, TypeScript, Tailwind CSS
 - **UI Components**: Radix UI, Lucide React
-- **Routing**: Wouter
 - **Build Tool**: Vite
 - **Backend**: Node.js, TypeScript, tRPC, Socket.IO
 - **Database**: PostgreSQL, Drizzle ORM
 - **Real-time**: WebRTC, WebSockets
-- **Deployment**: GitHub Pages
 
 ## 🌐 Поддержка браузеров
 
 Приложение работает во всех современных браузерах:
 
-- ✅ Chrome/Edge 90+
-- ✅ Firefox 88+
-- ✅ Safari 14+
-- ✅ Opera 76+
+- ✅ Chrome/Edge 
+- ✅ Firefox 
+- ✅ Safari 
+- ✅ Opera 
 
 **Требования:**
 - WebRTC поддержка
@@ -41,6 +39,7 @@
 ### Локальная разработка
 
 ```bash
+
 # Установка зависимостей
 pnpm install
 
