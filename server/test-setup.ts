@@ -21,12 +21,12 @@ export async function setupTestDatabase() {
 
   // Создаем подключение к тестовой базе данных
   const testDbUrl = `mysql://${process.env.DB_USER || "root"}:${process.env.DB_PASSWORD || ""}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || "3306"}/${TEST_DB_NAME}`;
-  
+
   const db = drizzle(testDbUrl);
-  
+
   // Применяем миграции
   await migrate(db, { migrationsFolder: "./drizzle/migrations" });
-  
+
   return db;
 }
 
@@ -41,4 +41,3 @@ export async function cleanupTestDatabase() {
   await connection.execute(`DROP DATABASE IF EXISTS ${TEST_DB_NAME}`);
   await connection.end();
 }
-

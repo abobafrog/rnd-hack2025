@@ -1,4 +1,10 @@
-import { mysqlTable, int, varchar, datetime, tinyint } from "drizzle-orm/mysql-core";
+import {
+  mysqlTable,
+  int,
+  varchar,
+  datetime,
+  tinyint,
+} from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
   id: int("id").primaryKey().autoincrement(),
@@ -51,6 +57,3 @@ export type InsertRoomParticipant = typeof roomParticipants.$inferInsert;
 
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = typeof chatMessages.$inferInsert;
-
-
-

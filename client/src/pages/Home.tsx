@@ -6,29 +6,28 @@ import AuthForm from "@/components/auth/AuthForm";
 import EditProfile from "@/components/auth/EditProfile";
 import Header from "@/components/layout/Header";
 import MeetingControls from "@/components/meeting/MeetingControls";
-import { 
-  UserData, 
-  RegisteredUser, 
-  getRegisteredUsers, 
-  saveRegisteredUser, 
-  checkUserExists, 
-  updateRegisteredUser, 
-  clearAllData 
+import {
+  UserData,
+  RegisteredUser,
+  getRegisteredUsers,
+  saveRegisteredUser,
+  checkUserExists,
+  updateRegisteredUser,
 } from "@/lib/auth";
 
-type AuthMode = 'select' | 'login' | 'register' | 'demo';
+type AuthMode = "select" | "login" | "register" | "demo";
 
 export default function Home() {
   const [user, setUser] = useState<UserData | null>(null);
   const [, setLocation] = useLocation();
-  const [authMode, setAuthMode] = useState<AuthMode>('select');
+  const [authMode, setAuthMode] = useState<AuthMode>("select");
   const [showAuthOptions, setShowAuthOptions] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
-  
+
   // Форма для входа/регистрации
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  
+
   // Состояние для редактирования профиля
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -75,7 +74,7 @@ export default function Home() {
 
   const handleAuth = (userData: UserData) => {
     setUser(userData);
-    setAuthMode('select');
+    setAuthMode("select");
     setFormError(null);
     setShowAuthOptions(false);
   };
@@ -85,9 +84,9 @@ export default function Home() {
       id: "demo",
       name: "Гость",
       email: "",
-      isDemo: true
+      isDemo: true,
     };
-    
+
     localStorage.setItem("conference_user", JSON.stringify(demoUser));
     handleAuth(demoUser);
     toast.success("Гостевой режим активирован", {
@@ -95,11 +94,15 @@ export default function Home() {
     });
   };
 
-  const handleFormSubmit = async (data: { name: string; email: string; password: string }) => {
+  const handleFormSubmit = async (data: {
+    name: string;
+    email: string;
+    password: string;
+  }) => {
     setFormError(null);
-    
+
     // Проверяем обязательные поля в зависимости от режима
-    if (authMode === 'register') {
+    if (authMode === "register") {
       if (!data.name.trim() || !data.email.trim() || !data.password.trim()) {
         setFormError("Все поля обязательны для заполнения");
         return;
@@ -112,8 +115,8 @@ export default function Home() {
     }
 
     setLoading(true);
-    
-    if (authMode === 'register') {
+
+    if (authMode === "register") {
       // Регистрация - проверяем, не существует ли уже пользователь с таким email
       const existingUser = checkUserExists(data.email.trim());
       if (existingUser) {
@@ -121,57 +124,57 @@ export default function Home() {
         setLoading(false);
         return;
       }
-      
+
       // Сохраняем нового пользователя
       const newUser: RegisteredUser = {
         id: Date.now().toString(),
         name: data.name.trim(),
         email: data.email.trim(),
-        password: data.password.trim()
+        password: data.password.trim(),
       };
-      
+
       saveRegisteredUser(newUser);
-      
+
       const userData: UserData = {
         id: newUser.id,
         name: newUser.name,
         email: newUser.email,
         isDemo: false,
-        avatar: newUser.avatar
+        avatar: newUser.avatar,
       };
-      
+
       localStorage.setItem("conference_user", JSON.stringify(userData));
       handleAuth(userData);
       toast.success("Вы успешно зарегистрировались");
     } else {
       // Вход - проверяем существование пользователя и правильность пароля
       const existingUser = checkUserExists(data.email.trim());
-      
+
       if (!existingUser) {
         setFormError("Пользователь с таким email не найден");
         setLoading(false);
         return;
       }
-      
+
       if (existingUser.password !== data.password.trim()) {
         setFormError("Неверный пароль");
         setLoading(false);
         return;
       }
-      
+
       const userData: UserData = {
         id: existingUser.id,
         name: existingUser.name,
         email: existingUser.email,
         isDemo: false,
-        avatar: existingUser.avatar
+        avatar: existingUser.avatar,
       };
-      
+
       localStorage.setItem("conference_user", JSON.stringify(userData));
       handleAuth(userData);
       toast.success("Вы успешно вошли");
     }
-    
+
     setLoading(false);
   };
 
@@ -187,22 +190,13 @@ export default function Home() {
     const isGuest = user?.isDemo;
     localStorage.removeItem("conference_user");
     setUser(null);
-    setAuthMode('select');
+    setAuthMode("select");
     setShowAuthOptions(true);
     if (!isGuest) {
       toast.info("Вы вышли из аккаунта");
     }
   };
 
-  const handleClearAllData = () => {
-    if (confirm("Вы уверены, что хотите очистить все данные? Это действие нельзя отменить.")) {
-      clearAllData();
-      setUser(null);
-      setAuthMode('select');
-      setShowAuthOptions(true);
-      toast.success("Все данные успешно очищены");
-    }
-  };
 
   const handleEditProfileClick = () => {
     if (user && !user.isDemo) {
@@ -211,7 +205,12 @@ export default function Home() {
     }
   };
 
-  const handleSaveProfile = async (data: { name: string; email: string; password: string; avatar: string }) => {
+  const handleSaveProfile = async (data: {
+    name: string;
+    email: string;
+    password: string;
+    avatar: string;
+  }) => {
     if (!user || user.isDemo) return;
 
     setEditError(null);
@@ -259,7 +258,7 @@ export default function Home() {
         name: data.name.trim(),
         email: data.email.trim(),
         isDemo: false,
-        avatar: data.avatar.trim() || undefined
+        avatar: data.avatar.trim() || undefined,
       };
 
       localStorage.setItem("conference_user", JSON.stringify(updatedUser));
@@ -275,21 +274,21 @@ export default function Home() {
 
   // Если нужно показать способы входа и пользователь не авторизован
   if (showAuthOptions && !user) {
-    if (authMode === 'select') {
+    if (authMode === "select") {
       return (
         <AuthSelect
           onDemoLogin={handleDemoLogin}
-          onLoginClick={() => setAuthMode('login')}
-          onRegisterClick={() => setAuthMode('register')}
+          onLoginClick={() => setAuthMode("login")}
+          onRegisterClick={() => setAuthMode("register")}
         />
       );
     }
 
     return (
       <AuthForm
-        mode={authMode as 'login' | 'register'}
+        mode={authMode as "login" | "register"}
         onSubmit={handleFormSubmit}
-        onBack={() => setAuthMode('select')}
+        onBack={() => setAuthMode("select")}
         loading={loading}
         error={formError}
       />
@@ -299,12 +298,11 @@ export default function Home() {
   // Если пользователь авторизован, показываем основной интерфейс
   if (user) {
     return (
-      <div className="min-h-screen bg-gray-900">
+      <div className="min-h-screen" style={{ backgroundColor: '#F5F5F5' }}>
         <Header
           user={user}
           onEditProfile={handleEditProfileClick}
           onLogout={handleLogout}
-          onClearData={handleClearAllData}
         />
 
         <MeetingControls
@@ -312,7 +310,7 @@ export default function Home() {
           onCreateMeeting={handleCreateMeeting}
           onJoinMeeting={handleJoinMeeting}
           onLogout={handleLogout}
-          onShowRegister={() => setAuthMode('register')}
+          onShowRegister={() => setAuthMode("register")}
         />
 
         {/* Modal для редактирования профиля */}

@@ -7,7 +7,13 @@ export default defineConfig({
   root: path.resolve(import.meta.dirname),
   test: {
     environment: "jsdom",
-    include: ["server/**/*.test.ts", "server/**/*.spec.ts", "client/**/*.test.ts", "client/**/*.spec.ts", "e2e/**/*.test.ts"],
+    include: [
+      "server/**/*.test.ts",
+      "server/**/*.spec.ts",
+      "client/**/*.test.ts",
+      "client/**/*.spec.ts",
+      "e2e/**/*.test.ts",
+    ],
     setupFiles: ["./server/test-setup.ts", "./client/src/test-setup.ts"],
     testTimeout: 30000,
     hookTimeout: 30000,
@@ -21,9 +27,9 @@ export default defineConfig({
         "drizzle/",
         "**/*.d.ts",
         "**/*.config.*",
-        "**/test-setup.ts"
-      ]
-    }
+        "**/test-setup.ts",
+      ],
+    },
   },
   resolve: {
     alias: {

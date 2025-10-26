@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { setupTestDatabase } from "./test-setup";
 import { appRouter } from "./routers";
 import { createContext } from "./_core/context";
-import { rooms, roomParticipants, chatMessages, users } from "../drizzle/schema";
+import {
+  rooms,
+  roomParticipants,
+  chatMessages,
+  users,
+} from "../drizzle/schema";
 
 describe("tRPC API Integration Tests", () => {
   let db: any;
@@ -10,7 +15,7 @@ describe("tRPC API Integration Tests", () => {
 
   beforeEach(async () => {
     db = await setupTestDatabase();
-    
+
     // Создаем тестовый контекст
     const mockReq = {} as any;
     const mockRes = {} as any;
@@ -19,12 +24,12 @@ describe("tRPC API Integration Tests", () => {
       openId: "test-user",
       name: "Test User",
       email: "test@example.com",
-      role: "user" as const
+      role: "user" as const,
     };
 
     const context = await createContext({ req: mockReq, res: mockRes });
     context.user = mockUser;
-    
+
     router = appRouter.createCaller(context);
   });
 
@@ -53,7 +58,7 @@ describe("tRPC API Integration Tests", () => {
   describe("Room Router", () => {
     it("should create room", async () => {
       const result = await router.room.create({ name: "Test Room" });
-      
+
       expect(result).toBeDefined();
       expect(result.roomCode).toBeDefined();
       expect(typeof result.roomCode).toBe("string");
@@ -63,10 +68,10 @@ describe("tRPC API Integration Tests", () => {
     it("should get room by code", async () => {
       // Сначала создаем комнату через API
       const createResult = await router.room.create({ name: "Test Room" });
-      
+
       // Получаем комнату по коду
       const room = await router.room.get({ roomCode: createResult.roomCode });
-      
+
       expect(room).toBeDefined();
       expect(room.name).toBe("Test Room");
       expect(room.roomCode).toBe(createResult.roomCode);
@@ -82,14 +87,14 @@ describe("tRPC API Integration Tests", () => {
       // Создаем комнату
       const createResult = await router.room.create({ name: "Test Room" });
       const room = await router.room.get({ roomCode: createResult.roomCode });
-      
+
       // Присоединяемся к комнате
       const result = await router.room.join({
         roomCode: createResult.roomCode,
         userName: "New Participant",
-        userId: 2
+        userId: 2,
       });
-      
+
       expect(result.success).toBe(true);
     });
 
@@ -97,17 +102,17 @@ describe("tRPC API Integration Tests", () => {
       // Создаем комнату
       const createResult = await router.room.create({ name: "Test Room" });
       const room = await router.room.get({ roomCode: createResult.roomCode });
-      
+
       // Добавляем участника
       await router.room.join({
         roomCode: createResult.roomCode,
         userName: "Participant 1",
-        userId: 2
+        userId: 2,
       });
-      
+
       // Получаем участников
       const participants = await router.room.participants({ roomId: room.id });
-      
+
       expect(participants).toHaveLength(1);
       expect(participants[0].userName).toBe("Participant 1");
     });
@@ -118,15 +123,15 @@ describe("tRPC API Integration Tests", () => {
       // Создаем комнату
       const createResult = await router.room.create({ name: "Test Room" });
       const room = await router.room.get({ roomCode: createResult.roomCode });
-      
+
       // Отправляем сообщение
       const result = await router.chat.send({
         roomId: room.id,
         userId: 1,
         userName: "Test User",
-        message: "Hello, world!"
+        message: "Hello, world!",
       });
-      
+
       expect(result.success).toBe(true);
     });
 
@@ -134,25 +139,25 @@ describe("tRPC API Integration Tests", () => {
       // Создаем комнату
       const createResult = await router.room.create({ name: "Test Room" });
       const room = await router.room.get({ roomCode: createResult.roomCode });
-      
+
       // Отправляем несколько сообщений
       await router.chat.send({
         roomId: room.id,
         userId: 1,
         userName: "User 1",
-        message: "First message"
+        message: "First message",
       });
-      
+
       await router.chat.send({
         roomId: room.id,
         userId: 2,
         userName: "User 2",
-        message: "Second message"
+        message: "Second message",
       });
-      
+
       // Получаем сообщения
       const messages = await router.chat.messages({ roomId: room.id });
-      
+
       expect(messages).toHaveLength(2);
       expect(messages[0].message).toBe("Second message"); // Новые сообщения первыми
       expect(messages[1].message).toBe("First message");
@@ -165,16 +170,13 @@ describe("tRPC API Integration Tests", () => {
         router.room.join({
           roomCode: "nonexistent",
           userName: "Test User",
-          userId: 1
+          userId: 1,
         })
       ).rejects.toThrow("Room not found");
     });
 
     it("should validate input parameters", async () => {
-      await expect(
-        router.room.create({ name: "" })
-      ).rejects.toThrow();
+      await expect(router.room.create({ name: "" })).rejects.toThrow();
     });
   });
 });
-

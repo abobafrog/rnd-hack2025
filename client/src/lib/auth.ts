@@ -1,5 +1,17 @@
-export type UserData = {id: string, name: string, email: string, isDemo?: boolean, avatar?: string};
-export type RegisteredUser = {id: string, name: string, email: string, password: string, avatar?: string};
+export type UserData = {
+  id: string;
+  name: string;
+  email: string;
+  isDemo?: boolean;
+  avatar?: string;
+};
+export type RegisteredUser = {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  avatar?: string;
+};
 
 // Функции для работы с зарегистрированными пользователями
 export const getRegisteredUsers = (): RegisteredUser[] => {
@@ -18,7 +30,10 @@ export const checkUserExists = (email: string): RegisteredUser | null => {
   return users.find(u => u.email.toLowerCase() === email.toLowerCase()) || null;
 };
 
-export const updateRegisteredUser = (userId: string, updates: Partial<RegisteredUser>) => {
+export const updateRegisteredUser = (
+  userId: string,
+  updates: Partial<RegisteredUser>
+) => {
   const users = getRegisteredUsers();
   const index = users.findIndex(u => u.id === userId);
   if (index !== -1) {
@@ -31,7 +46,7 @@ export const clearAllData = () => {
   // Очищаем все данные из localStorage
   localStorage.removeItem("conference_user");
   localStorage.removeItem("registered_users");
-  
+
   // Очищаем все данные о комнатах
   const keysToRemove: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {

@@ -1,6 +1,6 @@
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
-export const APP_TITLE = import.meta.env.VITE_APP_TITLE || "App";
+export const APP_TITLE = import.meta.env.VITE_APP_TITLE || "Utkiuuu";
 
 export const APP_LOGO =
   import.meta.env.VITE_APP_LOGO ||
@@ -10,12 +10,12 @@ export const APP_LOGO =
 export const getLoginUrl = () => {
   const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
   const appId = import.meta.env.VITE_APP_ID;
-  
+
   // Если OAuth не настроен, возвращаем заглушку
   if (!oauthPortalUrl || !appId) {
     return "#oauth-not-configured";
   }
-  
+
   const redirectUri = `${window.location.origin}/api/oauth/callback`;
   const state = btoa(redirectUri);
 

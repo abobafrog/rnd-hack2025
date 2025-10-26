@@ -5,7 +5,12 @@ import path from "path";
 import { defineConfig } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime()];
+const plugins = [
+  react(),
+  tailwindcss(),
+  jsxLocPlugin(),
+  vitePluginManusRuntime(),
+];
 
 export default defineConfig(({ mode }) => ({
   plugins,
@@ -19,36 +24,45 @@ export default defineConfig(({ mode }) => ({
   envDir: path.resolve(__dirname),
   root: path.resolve(__dirname, "client"),
   publicDir: path.resolve(__dirname, "client", "public"),
-  base: mode === 'github-pages' ? '/uutki/' : '/',
+  base: mode === "github-pages" ? "/uutki/" : "/",
   build: {
     outDir: path.resolve(__dirname, "docs"),
     emptyOutDir: true,
     // Optimize for GitHub Pages
-    minify: 'terser',
+    minify: "terser",
     terserOptions: {
       compress: {
         drop_console: true,
         drop_debugger: true,
-        pure_funcs: ['console.log', 'console.info', 'console.debug', 'console.warn'],
+        pure_funcs: [
+          "console.log",
+          "console.info",
+          "console.debug",
+          "console.warn",
+        ],
       },
     },
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-tabs', '@radix-ui/react-dropdown-menu'],
-          icons: ['lucide-react'],
-          utils: ['wouter', 'sonner'],
+          vendor: ["react", "react-dom"],
+          ui: [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-tabs",
+            "@radix-ui/react-dropdown-menu",
+          ],
+          icons: ["lucide-react"],
+          utils: ["wouter", "sonner"],
         },
         // Размещаем CSS и JS файлы в корне папки сборки
-        chunkFileNames: '[name]-[hash].js',
-        entryFileNames: '[name]-[hash].js',
-        assetFileNames: '[name]-[hash].[ext]',
+        chunkFileNames: "[name]-[hash].js",
+        entryFileNames: "[name]-[hash].js",
+        assetFileNames: "[name]-[hash].[ext]",
       },
     },
     // Optimize bundle size
     chunkSizeWarningLimit: 1000,
-    target: 'es2015',
+    target: "es2015",
   },
   server: {
     host: true,
@@ -72,7 +86,7 @@ export default defineConfig(({ mode }) => ({
   },
   // Optimize dependencies for faster loading
   optimizeDeps: {
-    include: ['react', 'react-dom', 'wouter'],
-    exclude: ['@radix-ui/react-dialog', '@radix-ui/react-tabs'],
+    include: ["react", "react-dom", "wouter"],
+    exclude: ["@radix-ui/react-dialog", "@radix-ui/react-tabs"],
   },
 }));

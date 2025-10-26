@@ -16,11 +16,9 @@
     "test:watch": "vitest",
     "test:unit": "vitest run server/**/*.test.ts",
     "test:api": "vitest run server/api.test.ts",
-    "test:components": "vitest run client/**/*.test.ts",
     "test:e2e": "vitest run e2e/**/*.test.ts",
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --reporter=verbose --coverage",
-    "test:quick": "node test-runner.js",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },
   "dependencies": {
@@ -125,9 +123,6 @@
   },
   "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af",
   "pnpm": {
-    "patchedDependencies": {
-      "wouter@3.7.1": "patches/wouter@3.7.1.patch"
-    },
     "overrides": {
       "tailwindcss>nanoid": "3.3.7"
     }

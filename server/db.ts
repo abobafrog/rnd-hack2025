@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users } from "../drizzle/schema";
-import { ENV } from './_core/env';
+import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -56,8 +56,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.role = user.role;
       updateSet.role = user.role;
     } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
+      values.role = "admin";
+      updateSet.role = "admin";
     }
 
     if (!values.lastSignedIn) {
@@ -84,12 +84,23 @@ export async function getUserByOpenId(openId: string) {
     return undefined;
   }
 
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.openId, openId))
+    .limit(1);
 
   return result.length > 0 ? result[0] : undefined;
 }
 
-import { rooms, InsertRoom, roomParticipants, InsertRoomParticipant, chatMessages, InsertChatMessage } from "../drizzle/schema";
+import {
+  rooms,
+  InsertRoom,
+  roomParticipants,
+  InsertRoomParticipant,
+  chatMessages,
+  InsertChatMessage,
+} from "../drizzle/schema";
 import { desc } from "drizzle-orm";
 
 // Создание комнаты
@@ -100,7 +111,7 @@ export async function createRoom(room: InsertRoom) {
     // В демо-режиме выбрасываем ошибку, чтобы клиент мог использовать fallback
     throw new Error("Database not available - demo mode");
   }
-  
+
   try {
     const result = await db.insert(rooms).values(room);
     return result;
@@ -119,9 +130,13 @@ export async function getRoomByCode(roomCode: string) {
     // В демо-режиме без БД возвращаем undefined - комната должна быть создана явно
     return undefined;
   }
-  
+
   try {
-    const result = await db.select().from(rooms).where(eq(rooms.roomCode, roomCode)).limit(1);
+    const result = await db
+      .select()
+      .from(rooms)
+      .where(eq(rooms.roomCode, roomCode))
+      .limit(1);
     return result.length > 0 ? result[0] : undefined;
   } catch (error) {
     console.warn("[Database] Database query failed:", error);
@@ -148,7 +163,10 @@ export async function getRoomParticipants(roomId: number) {
     console.warn("[Database] Database not available, using demo mode");
     return [];
   }
-  return await db.select().from(roomParticipants).where(eq(roomParticipants.roomId, roomId));
+  return await db
+    .select()
+    .from(roomParticipants)
+    .where(eq(roomParticipants.roomId, roomId));
 }
 
 // Добавление сообщения в чат
@@ -169,17 +187,28 @@ export async function getChatMessages(roomId: number) {
     console.warn("[Database] Database not available, using demo mode");
     return [];
   }
-  return await db.select().from(chatMessages).where(eq(chatMessages.roomId, roomId)).orderBy(desc(chatMessages.createdAt)).limit(100);
+  return await db
+    .select()
+    .from(chatMessages)
+    .where(eq(chatMessages.roomId, roomId))
+    .orderBy(desc(chatMessages.createdAt))
+    .limit(100);
 }
 
 // Обновление статуса участника
-export async function updateParticipantStatus(participantId: number, isOnline: number) {
+export async function updateParticipantStatus(
+  participantId: number,
+  isOnline: number
+) {
   const db = await getDb();
   if (!db) {
     console.warn("[Database] Database not available, using demo mode");
     return { success: true };
   }
-  return await db.update(roomParticipants).set({ isOnline }).where(eq(roomParticipants.id, participantId));
+  return await db
+    .update(roomParticipants)
+    .set({ isOnline })
+    .where(eq(roomParticipants.id, participantId));
 }
 
 // Получение всех комнат (не приватных)
@@ -195,7 +224,7 @@ export async function getAllRooms() {
         name: "Демо комната 1",
         ownerId: 1,
         isActive: 1,
-        createdAt: new Date(Date.now() - 86400000) // 1 день назад
+        createdAt: new Date(Date.now() - 86400000), // 1 день назад
       },
       {
         id: 2,
@@ -203,13 +232,15 @@ export async function getAllRooms() {
         name: "Демо комната 2",
         ownerId: 1,
         isActive: 1,
-        createdAt: new Date(Date.now() - 172800000) // 2 дня назад
-      }
+        createdAt: new Date(Date.now() - 172800000), // 2 дня назад
+      },
     ];
   }
-  
+
   try {
-    const result = await db.select().from(rooms)
+    const result = await db
+      .select()
+      .from(rooms)
       .where(eq(rooms.isActive, 1))
       .orderBy(desc(rooms.createdAt))
       .limit(10);
@@ -224,7 +255,7 @@ export async function getAllRooms() {
         name: "Демо комната 1",
         ownerId: 1,
         isActive: 1,
-        createdAt: new Date(Date.now() - 86400000)
+        createdAt: new Date(Date.now() - 86400000),
       },
       {
         id: 2,
@@ -232,8 +263,8 @@ export async function getAllRooms() {
         name: "Демо комната 2",
         ownerId: 1,
         isActive: 1,
-        createdAt: new Date(Date.now() - 172800000)
-      }
+        createdAt: new Date(Date.now() - 172800000),
+      },
     ];
   }
 }

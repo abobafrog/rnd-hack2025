@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { setupTestDatabase } from "../server/test-setup";
 import { appRouter } from "../server/routers";
 import { createContext } from "../server/_core/context";
-import { rooms, roomParticipants, chatMessages, users } from "../drizzle/schema";
+import {
+  rooms,
+  roomParticipants,
+  chatMessages,
+  users,
+} from "../drizzle/schema";
 
 describe("End-to-End Scenarios", () => {
   let db: any;
@@ -10,7 +15,7 @@ describe("End-to-End Scenarios", () => {
 
   beforeEach(async () => {
     db = await setupTestDatabase();
-    
+
     // Создаем тестовый контекст с пользователем
     const mockReq = {} as any;
     const mockRes = {} as any;
@@ -23,12 +28,16 @@ describe("End-to-End Scenarios", () => {
       role: "user" as const,
       createdAt: new Date(),
       updatedAt: new Date(),
-      lastSignedIn: new Date()
+      lastSignedIn: new Date(),
     };
 
-    const context = await createContext({ req: mockReq, res: mockRes, info: {} as any });
+    const context = await createContext({
+      req: mockReq,
+      res: mockRes,
+      info: {} as any,
+    });
     context.user = mockUser;
-    
+
     router = appRouter.createCaller(context);
   });
 
@@ -55,7 +64,7 @@ describe("End-to-End Scenarios", () => {
       const joinResult = await router.room.join({
         roomCode: createResult.roomCode,
         userName: "Participant User",
-        userId: 2
+        userId: 2,
       });
       expect(joinResult.success).toBe(true);
 
@@ -69,7 +78,7 @@ describe("End-to-End Scenarios", () => {
         roomId: room.id,
         userId: 1,
         userName: "Room Owner",
-        message: "Welcome to the room!"
+        message: "Welcome to the room!",
       });
       expect(message1.success).toBe(true);
 
@@ -77,7 +86,7 @@ describe("End-to-End Scenarios", () => {
         roomId: room.id,
         userId: 2,
         userName: "Participant User",
-        message: "Thank you for inviting me!"
+        message: "Thank you for inviting me!",
       });
       expect(message2.success).toBe(true);
 
@@ -90,28 +99,32 @@ describe("End-to-End Scenarios", () => {
 
     it("should handle multiple participants joining", async () => {
       // Создаем комнату
-      const createResult = await router.room.create({ name: "Multi-User Room" });
+      const createResult = await router.room.create({
+        name: "Multi-User Room",
+      });
       const room = await router.room.get({ roomCode: createResult.roomCode });
 
       // Несколько пользователей присоединяются
       const participants = [
         { userId: 2, userName: "User 2" },
         { userId: 3, userName: "User 3" },
-        { userId: 4, userName: "User 4" }
+        { userId: 4, userName: "User 4" },
       ];
 
       for (const participant of participants) {
         await router.room.join({
           roomCode: createResult.roomCode,
           userName: participant.userName,
-          userId: participant.userId
+          userId: participant.userId,
         });
       }
 
       // Проверяем всех участников
-      const roomParticipants = await router.room.participants({ roomId: room.id });
+      const roomParticipants = await router.room.participants({
+        roomId: room.id,
+      });
       expect(roomParticipants).toHaveLength(3);
-      
+
       const participantNames = roomParticipants.map(p => p.userName);
       expect(participantNames).toContain("User 2");
       expect(participantNames).toContain("User 3");
@@ -127,13 +140,13 @@ describe("End-to-End Scenarios", () => {
       await router.room.join({
         roomCode: createResult.roomCode,
         userName: "Alice",
-        userId: 2
+        userId: 2,
       });
 
       await router.room.join({
         roomCode: createResult.roomCode,
         userName: "Bob",
-        userId: 3
+        userId: 3,
       });
 
       // Участники отправляют сообщения
@@ -141,7 +154,11 @@ describe("End-to-End Scenarios", () => {
         { userId: 1, userName: "Room Owner", message: "Hello everyone!" },
         { userId: 2, userName: "Alice", message: "Hi there!" },
         { userId: 3, userName: "Bob", message: "Nice to meet you all!" },
-        { userId: 1, userName: "Room Owner", message: "Let's start the meeting" }
+        {
+          userId: 1,
+          userName: "Room Owner",
+          message: "Let's start the meeting",
+        },
       ];
 
       for (const msg of messages) {
@@ -149,14 +166,14 @@ describe("End-to-End Scenarios", () => {
           roomId: room.id,
           userId: msg.userId,
           userName: msg.userName,
-          message: msg.message
+          message: msg.message,
         });
       }
 
       // Получаем все сообщения
       const chatHistory = await router.chat.messages({ roomId: room.id });
       expect(chatHistory).toHaveLength(4);
-      
+
       // Проверяем порядок сообщений (новые первыми)
       expect(chatHistory[0].message).toBe("Let's start the meeting");
       expect(chatHistory[1].message).toBe("Nice to meet you all!");
@@ -177,16 +194,14 @@ describe("End-to-End Scenarios", () => {
         router.room.join({
           roomCode: "nonexistent",
           userName: "Test User",
-          userId: 1
+          userId: 1,
         })
       ).rejects.toThrow("Room not found");
     });
 
     it("should handle invalid input parameters", async () => {
       // Попытка создать комнату с пустым именем
-      await expect(
-        router.room.create({ name: "" })
-      ).rejects.toThrow();
+      await expect(router.room.create({ name: "" })).rejects.toThrow();
 
       // Попытка отправить сообщение в несуществующую комнату
       await expect(
@@ -194,7 +209,7 @@ describe("End-to-End Scenarios", () => {
           roomId: 99999,
           userId: 1,
           userName: "Test User",
-          message: "Test message"
+          message: "Test message",
         })
       ).rejects.toThrow();
     });
@@ -203,7 +218,9 @@ describe("End-to-End Scenarios", () => {
   describe("Performance Scenarios", () => {
     it("should handle large number of messages efficiently", async () => {
       // Создаем комнату
-      const createResult = await router.room.create({ name: "Performance Test Room" });
+      const createResult = await router.room.create({
+        name: "Performance Test Room",
+      });
       const room = await router.room.get({ roomCode: createResult.roomCode });
 
       // Отправляем много сообщений
@@ -213,14 +230,14 @@ describe("End-to-End Scenarios", () => {
           roomId: room.id,
           userId: 1,
           userName: "Test User",
-          message: `Message ${i + 1}`
+          message: `Message ${i + 1}`,
         });
       }
 
       // Получаем сообщения (должно быть ограничено 100 сообщениями)
       const messages = await router.chat.messages({ roomId: room.id });
       expect(messages).toHaveLength(messageCount);
-      
+
       // Проверяем, что сообщения отсортированы по времени (новые первыми)
       for (let i = 0; i < messages.length - 1; i++) {
         expect(messages[i].createdAt.getTime()).toBeGreaterThanOrEqual(
@@ -230,5 +247,3 @@ describe("End-to-End Scenarios", () => {
     });
   });
 });
-
-

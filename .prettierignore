@@ -5,6 +5,7 @@ node_modules/
 # Build outputs
 dist/
 build/
+docs/
 *.dist
 
 # Generated files
@@ -22,9 +23,12 @@ pnpm-lock.yaml
 
 # Logs
 *.log
+npm-debug.log*
+pnpm-debug.log*
 
 # Environment files
 .env*
+.env.local
 
 # IDE files
 .vscode/
@@ -33,3 +37,4 @@ pnpm-lock.yaml
 # OS files
 .DS_Store
 Thumbs.db
+ehthumbs.db

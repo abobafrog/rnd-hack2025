@@ -1,16 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { setupTestDatabase, cleanupTestDatabase } from "./test-setup";
-import { 
-  createRoom, 
-  getRoomByCode, 
-  addParticipant, 
-  getRoomParticipants, 
-  addChatMessage, 
+import {
+  createRoom,
+  getRoomByCode,
+  addParticipant,
+  getRoomParticipants,
+  addChatMessage,
   getChatMessages,
   upsertUser,
-  getUserByOpenId
+  getUserByOpenId,
 } from "./db";
-import { rooms, roomParticipants, chatMessages, users } from "../drizzle/schema";
+import {
+  rooms,
+  roomParticipants,
+  chatMessages,
+  users,
+} from "../drizzle/schema";
 
 describe("Database Functions", () => {
   let db: any;
@@ -33,7 +38,7 @@ describe("Database Functions", () => {
         openId: "test-openid-123",
         name: "Test User",
         email: "test@example.com",
-        loginMethod: "google"
+        loginMethod: "google",
       };
 
       await upsertUser(userData);
@@ -49,15 +54,15 @@ describe("Database Functions", () => {
       const initialUser = {
         openId: "test-openid-456",
         name: "Initial Name",
-        email: "initial@example.com"
+        email: "initial@example.com",
       };
 
       await upsertUser(initialUser);
-      
+
       const updatedUser = {
         openId: "test-openid-456",
         name: "Updated Name",
-        email: "updated@example.com"
+        email: "updated@example.com",
       };
 
       await upsertUser(updatedUser);
@@ -73,7 +78,7 @@ describe("Database Functions", () => {
       const roomData = {
         roomCode: "test123",
         name: "Test Room",
-        ownerId: 1
+        ownerId: 1,
       };
 
       const result = await createRoom(roomData);
@@ -84,7 +89,7 @@ describe("Database Functions", () => {
       const roomData = {
         roomCode: "test456",
         name: "Test Room 2",
-        ownerId: 1
+        ownerId: 1,
       };
 
       await createRoom(roomData);
@@ -107,7 +112,7 @@ describe("Database Functions", () => {
       const roomData = {
         roomCode: "test789",
         name: "Test Room 3",
-        ownerId: 1
+        ownerId: 1,
       };
       await createRoom(roomData);
       const room = await getRoomByCode("test789");
@@ -116,7 +121,7 @@ describe("Database Functions", () => {
       const participantData = {
         roomId: room!.id,
         userId: 1,
-        userName: "Test Participant"
+        userName: "Test Participant",
       };
 
       const result = await addParticipant(participantData);
@@ -128,7 +133,7 @@ describe("Database Functions", () => {
       const roomData = {
         roomCode: "test101",
         name: "Test Room 4",
-        ownerId: 1
+        ownerId: 1,
       };
       await createRoom(roomData);
       const room = await getRoomByCode("test101");
@@ -137,13 +142,13 @@ describe("Database Functions", () => {
       await addParticipant({
         roomId: room!.id,
         userId: 1,
-        userName: "Participant 1"
+        userName: "Participant 1",
       });
 
       await addParticipant({
         roomId: room!.id,
         userId: 2,
-        userName: "Participant 2"
+        userName: "Participant 2",
       });
 
       const participants = await getRoomParticipants(room!.id);
@@ -159,7 +164,7 @@ describe("Database Functions", () => {
       const roomData = {
         roomCode: "test202",
         name: "Test Room 5",
-        ownerId: 1
+        ownerId: 1,
       };
       await createRoom(roomData);
       const room = await getRoomByCode("test202");
@@ -169,7 +174,7 @@ describe("Database Functions", () => {
         roomId: room!.id,
         userId: 1,
         userName: "Test User",
-        message: "Hello, world!"
+        message: "Hello, world!",
       };
 
       const result = await addChatMessage(messageData);
@@ -181,7 +186,7 @@ describe("Database Functions", () => {
       const roomData = {
         roomCode: "test303",
         name: "Test Room 6",
-        ownerId: 1
+        ownerId: 1,
       };
       await createRoom(roomData);
       const room = await getRoomByCode("test303");
@@ -191,14 +196,14 @@ describe("Database Functions", () => {
         roomId: room!.id,
         userId: 1,
         userName: "User 1",
-        message: "First message"
+        message: "First message",
       });
 
       await addChatMessage({
         roomId: room!.id,
         userId: 2,
         userName: "User 2",
-        message: "Second message"
+        message: "Second message",
       });
 
       const messages = await getChatMessages(room!.id);
@@ -208,4 +213,3 @@ describe("Database Functions", () => {
     });
   });
 });
-

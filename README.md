@@ -41,6 +41,16 @@ pnpm build
 pnpm preview
 ```
 
+### Настройка базы данных
+
+```bash
+# Установка БД (Linux/Mac)
+bash setup-database.sh
+
+# Или вручную
+pnpm run db:push
+```
+
 ### Деплой на GitHub Pages
 
 1. Форкните репозиторий
@@ -97,16 +107,16 @@ docs/
 ```typescript
 // vite.config.ts
 export default defineConfig(({ mode }) => ({
-  base: mode === 'github-pages' ? '/uutki/' : '/',
+  base: mode === "github-pages" ? "/uutki/" : "/",
   build: {
-    minify: 'terser',
+    minify: "terser",
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-tabs'],
-          icons: ['lucide-react'],
-          utils: ['wouter', 'sonner'],
+          vendor: ["react", "react-dom"],
+          ui: ["@radix-ui/react-dialog", "@radix-ui/react-tabs"],
+          icons: ["lucide-react"],
+          utils: ["wouter", "sonner"],
         },
       },
     },
@@ -128,8 +138,9 @@ export default defineConfig(({ mode }) => ({
 ## 📱 Адаптивность
 
 Приложение полностью адаптивно и работает на:
+
 - 📱 Мобильных устройствах
-- 💻 Планшетах  
+- 💻 Планшетах
 - 🖥 Десктопах
 - 📺 Больших экранах
 

@@ -15,19 +15,19 @@ export async function setupVite(app: Express, server: Server) {
 
   const vite = await createViteServer({
     ...viteConfig,
-    configFile: false,
+    configFile: path.resolve(import.meta.dirname, "../../vite.config.ts"),
     server: serverOptions,
-    appType: "custom",
+    appType: "spa",
   });
 
   app.use(vite.middlewares);
-  
+
   // Handle all GET requests for SPA routing
   app.get("*", async (req, res, next) => {
     const url = req.originalUrl;
-    
+
     // Skip API routes
-    if (url.startsWith('/api/')) {
+    if (url.startsWith("/api/")) {
       return next();
     }
 
