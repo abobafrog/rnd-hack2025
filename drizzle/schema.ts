@@ -57,3 +57,4 @@ export type InsertRoomParticipant = typeof roomParticipants.$inferInsert;
 
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = typeof chatMessages.$inferInsert;
+

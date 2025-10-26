@@ -132,3 +132,4 @@ export default function Auth({ onAuth }: AuthProps) {
     </div>
   );
 }
+
